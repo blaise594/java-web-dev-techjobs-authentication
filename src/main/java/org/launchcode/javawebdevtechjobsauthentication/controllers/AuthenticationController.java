@@ -2,6 +2,7 @@ package org.launchcode.javawebdevtechjobsauthentication.controllers;
 
 import org.launchcode.javawebdevtechjobsauthentication.models.User;
 import org.launchcode.javawebdevtechjobsauthentication.models.data.UserRepository;
+import org.launchcode.javawebdevtechjobsauthentication.models.dto.LoginFormDTO;
 import org.launchcode.javawebdevtechjobsauthentication.models.dto.RegisterFormDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -66,16 +67,75 @@ public class AuthenticationController {
             return "register";
         }
         //If the two form fields for passwords do not match, add an error message and re-render the form.
-
+        String password = registerFormDTO.getPassword();
+        String verifyPassword = registerFormDTO.getVerifyPassword();
+        if(!password.equals(verifyPassword)){
+            errors.rejectValue("password", "passwords.mismatch", "Passwords do not match");
+            model.addAttribute("title", "Register");
+            return "register";
+        }
         //If none of the above conditions are met,
         //Create a new user with the form data,
+        User newUser = new User(registerFormDTO.getUsername(), registerFormDTO.getPassword());
         //Save the user to the database,
+        userRepository.save(newUser);
         //Create a new user session,
+        setUserInSession(request.getSession(), newUser);
         //Redirect to the home page.
-
-        return "redirect";
+        return "redirect:";
     }
 
+    //Handle the login data.
+    @GetMapping("/login")
+    public String displayLoginForm(Model model) {
+        model.addAttribute(new LoginFormDTO());
+        model.addAttribute("title", "Log In");
+        return "login";
+    }
+
+    @PostMapping("/login")
+    public String processLoginForm(@ModelAttribute @Valid LoginFormDTO loginFormDTO,
+                                   Errors errors, HttpServletRequest request,
+                                   Model model) {
+        //If the database does not contain a user with the submitted username, add an error message and re-render.
+        if (errors.hasErrors()) {
+            model.addAttribute("title", "Log In");
+            return "login";
+        }
+
+        User theUser = userRepository.findByUsername(loginFormDTO.getUsername());
+
+        if (theUser == null) {
+            errors.rejectValue("username", "user.invalid", "The given username does not exist");
+            model.addAttribute("title", "Log In");
+            return "login";
+        }
+
+        //If the submitted password does not match the encoded password attached to the username in the form, add an error message and re-render.
+        String password = loginFormDTO.getPassword();
+
+        if (!theUser.checkIfPasswordMatches(password)) {
+            errors.rejectValue("password", "password.invalid", "Invalid password");
+            model.addAttribute("title", "Log In");
+            return "login";
+        }
+        //If the submission passes all of these checks, create a new user session.
+        setUserInSession(request.getSession(), theUser);
+
+        return "redirect:";
+    }
+
+
+
+    //Handle logging out.
+    //Still in AuthenticationController, create a GET handler method for a path to logout.
+    @GetMapping("/logout")
+    public String logout(HttpServletRequest request){
+        //Invalidate the session data from the request object.
+        request.getSession().invalidate();
+        //Redirect the user to the login form.
+        return "redirect:/login";
+    }
 
 
 }
